@@ -1,35 +1,36 @@
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString.Lazy.Char8 as LB
+import qualified Data.ByteString.Char8 as B
 import Happstack.Lite
 import System.Timeout
+import Text.JSON
 
-myApp :: MVar Integer -> ServerPart Response
+data State = State {
+  clients :: [ B.ByteString ]
+}
+
+stateToJ :: State -> JSValue
+stateToJ s = showJSON . clients $ s
+
+instance ToMessage State where
+  toMessage s =
+    let clientsJs = JSObject $ toJSObject $ [ ("clients", showJSON . clients $ s) ]
+    in LB.pack . encode $ clientsJs
+  toContentType _ = B.pack "text/json"
+
+myApp :: MVar State -> ServerPart Response
 myApp x = msum [
-  dir "get" $ get x,
-  dir "start" $ start x
+  dir "status" $ status x
   ]
 
-incrementLoop :: MVar Integer -> IO ()
-incrementLoop x = do
-  val <- readMVar x
-  swapMVar x (val+1)
-  threadDelay 1000000
-  incrementLoop x
-
-start :: MVar Integer -> ServerPart Response
-start x = do
-  liftIO $ forkIO $ do
-    timeout 5000000 $ incrementLoop x
-    return ()
-  return $ toResponse "Started"
-
-get :: ToMessage a => MVar a -> ServerPart Response
-get x = do
-  val <- liftIO $ readMVar x
-  return $ toResponse val
+status :: MVar State -> ServerPart Response
+status x = do
+  val <- liftIO . readMVar $ x
+  return . toResponse $ val
 
 main = do
   putStrLn "Anarchy."
-  x <- newMVar (0 :: Integer)
+  x <- newMVar (State [])
   serve Nothing $ myApp x
