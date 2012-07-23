@@ -22,11 +22,17 @@ Executable anarchy
                  base,
                  bytestring,
                  happstack-lite,
+                 happstack-server,
+                 hashable,
+                 HTTP,
                  json,
+                 network,
+                 MaybeT,
+                 time,
                  transformers
   
   -- Modules not exported by this package.
-  Other-modules:       
+  Other-modules: Network.Anarchy.Client
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:
