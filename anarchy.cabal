@@ -32,7 +32,9 @@ Executable anarchy
                  transformers
   
   -- Modules not exported by this package.
-  Other-modules: Network.Anarchy.Client
+  Other-modules: Network.Anarchy.Client,
+                 Network.Anarchy.Server,
+                 Network.Anarchy
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:
