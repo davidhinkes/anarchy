@@ -1,8 +1,13 @@
 all: configure build
-	cabal build
+
 configure:
-	cabal configure
+	cabal configure --enable-tests
+
 build:
 	cabal build
-run: all	
+
+test:
+	cabal test
+
+run: all
 	dist/build/anarchy/anarchy

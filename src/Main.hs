@@ -18,4 +18,5 @@ import Network.Anarchy.Server
 main = do
   putStrLn "Anarchy."
   let serverConfig = defaultServerConfig { Happstack.Lite.port = 8080 }
-  runServer serverConfig (HostPort "hink.es" 8080)
+  h <- runServer serverConfig (HostPort "hink.es" 8080)
+  block h

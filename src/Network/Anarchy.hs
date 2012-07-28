@@ -8,7 +8,7 @@ import Data.Hashable
 import Data.Time.Clock.POSIX
 import Happstack.Lite
 
-data HostPort = HostPort String Int
+data HostPort = HostPort String Int deriving (Eq, Show)
 
 instance Hashable HostPort where
   hash (HostPort h p) = hash (h, p)
@@ -22,7 +22,7 @@ instance JSON HostPort where
                   p <- valFromObj "port" jsObject
                   return $ HostPort h p
 
-data UniqueMessage a = UniqueMessage a String HostPort
+data UniqueMessage a = UniqueMessage a String HostPort deriving (Eq, Show)
 
 instance (JSON a) => JSON (UniqueMessage a) where
   showJSON (UniqueMessage m t hp) = let t' = ("timestamp", showJSON t)

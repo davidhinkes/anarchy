@@ -1,4 +1,4 @@
-module Network.Anarchy.Server (runServer) where
+module Network.Anarchy.Server (State(..), runServer, block) where
 
 import Control.Concurrent
 import Control.Concurrent.Async
@@ -10,6 +10,7 @@ import Data.Maybe
 import Data.Hashable
 import Happstack.Lite
 import Happstack.Server (Request(..), askRq)
+import Happstack.Server.Types
 import System.Timeout
 import Text.JSON
 
@@ -20,7 +21,9 @@ data State = State {
   clients :: [ B.ByteString ],
   hostport :: Maybe HostPort,
   digests :: [Int]
-}
+} deriving (Eq, Show)
+
+type Handle = (MVar State, Async ())
 
 instance JSON State where
   showJSON s = let cs =  ("clients", showJSON (clients s))
@@ -43,17 +46,7 @@ myApp x = msum [
   dir "status" . status $ x,
   dir "register" . register $ x,
   dir "hostcheck" . hostcheck $ x
---dir "networkupdate" . networkupdate $ x
   ]
-
-{--
-networkupdate :: MVar State -> ServerPart Response
-networkupdate x = do
-  method PUT -- only handle PUT requests
-  id <- path (\x -> return x)
-  liftIO $ modifyMVar_ x (\s -> return (s { digests = (id : (digests s)) }))
-  return . toResponse $ ()
---}
 
 hostcheck :: MVar State -> ServerPart Response
 hostcheck _ = do
@@ -61,12 +54,22 @@ hostcheck _ = do
   Request { rqPeer = (host,_) } <- askRq
   return . toResponse $ host
 
+getBody :: ServerPart String
+getBody = do
+  req <- askRq
+  body <- liftIO $ takeRequestBody req
+  case body of
+    Just r -> return . LB.unpack . unBody $ r
+    Nothing -> return "Nothing"
+
 register :: MVar State -> ServerPart Response
 register x = do
   method PUT -- only handle PUT requests
-  --port <- path (\x -> return x)
-  Request { rqPeer = (host,_) } <- askRq
-  return . toResponse $ ""
+  body <- getBody
+  let msg = decode body :: Result (UniqueMessage HostPort)
+  case (msg) of
+    Ok (UniqueMessage a _ _) -> return . toResponse $ "Ok"
+    _ -> return . toResponse $ body
 
 status :: MVar State -> ServerPart Response
 status x = do
@@ -74,13 +77,18 @@ status x = do
   val <- liftIO . readMVar $ x
   return . toResponse $ val
 
-runServer :: ServerConfig -> HostPort -> IO ()
+updateHostPort :: HostPort -> Int -> MVar State ->  MaybeT IO ()
+updateHostPort hp p s = do
+  h <- Client.hostcheck $ hp
+  liftIO $ modifyMVar_ s (\x -> return ( x { hostport = Just (HostPort h p) } ) )
+
+runServer :: ServerConfig -> HostPort -> IO Handle
 runServer config hp = do
   let p = Happstack.Lite.port config
   x <- newMVar (State [] Nothing [])
   id <- async $ serve (return config) $ myApp x
-  r <- runMaybeT $ Client.hostcheck "hink.es" 8080
-  case r of
-    Nothing -> return ()
-    Just h -> modifyMVar_ x (\s -> return ( s { hostport = Just (HostPort h p) } ) )
-  wait id
+  runMaybeT $ updateHostPort hp p x
+  return (x, id)
+
+block :: Handle -> IO ()
+block (_, id) = wait id

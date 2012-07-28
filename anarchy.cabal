@@ -9,8 +9,29 @@ Maintainer:          david.hinkes@gmail.com
 Category:            Network
 Build-type:          Simple
 
-Cabal-version:       >=1.2
+Cabal-version:       >=1.9.2
 
+Test-Suite tests
+  type: exitcode-stdio-1.0
+  main-is: Test.hs
+  hs-source-dirs: tests, src
+  build-depends: base,
+                 Cabal >= 1.10,
+                 test-framework,
+                 test-framework-quickcheck2,
+                 QuickCheck,
+                 async,
+                 base,
+                 bytestring,
+                 happstack-lite,
+                 happstack-server,
+                 hashable,
+                 HTTP,
+                 json,
+                 network,
+                 MaybeT,
+                 time,
+                 transformers
 
 Executable anarchy
   -- .hs or .lhs file containing the Main module.
@@ -32,9 +53,9 @@ Executable anarchy
                  transformers
   
   -- Modules not exported by this package.
-  Other-modules: Network.Anarchy.Client,
-                 Network.Anarchy.Server,
-                 Network.Anarchy
+  --other-modules: Network.Anarchy.Client,
+  --               Network.Anarchy.Server,
+  --               Network.Anarchy
   
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:
