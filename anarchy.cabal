@@ -23,6 +23,7 @@ Test-Suite tests
                  async,
                  base,
                  bytestring,
+                 containers,
                  happstack-lite,
                  happstack-server,
                  hashable,
@@ -30,6 +31,7 @@ Test-Suite tests
                  json,
                  network,
                  MaybeT,
+                 mtl,
                  time,
                  transformers
 
@@ -42,6 +44,7 @@ Executable anarchy
   Build-depends: async,
                  base,
                  bytestring,
+                 containers,
                  happstack-lite,
                  happstack-server,
                  hashable,
@@ -49,13 +52,11 @@ Executable anarchy
                  json,
                  network,
                  MaybeT,
+                 mtl,
                  time,
                  transformers
-  
+                 
   -- Modules not exported by this package.
-  --other-modules: Network.Anarchy.Client,
-  --               Network.Anarchy.Server,
-  --               Network.Anarchy
-  
-  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:
+  other-modules: Network.Anarchy.Client,
+                 Network.Anarchy.Server,
+                 Network.Anarchy

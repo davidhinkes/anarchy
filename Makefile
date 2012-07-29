@@ -6,7 +6,7 @@ configure:
 build:
 	cabal build
 
-test:
+test: all
 	cabal test
 
 run: all
