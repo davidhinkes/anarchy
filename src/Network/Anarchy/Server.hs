@@ -48,11 +48,26 @@ myApp :: MVar ServerState -> ServerPart Response
 myApp x = msum [
   dir "status" . status $ x,
   dir "register" . register $ x,
-  dir "hostcheck" . hostcheck $ x
+  dir "addclients" . addClients $ x,
+  dir "hostcheck" . hostCheck $ x
   ]
 
-hostcheck :: MVar ServerState -> ServerPart Response
-hostcheck _ = do
+addClients :: MVar ServerState -> ServerPart Response
+addClients x = do
+  method PUT -- only handle PUT requests
+  body <- getBody
+  let msg = decode body :: Result ([HostPort])
+  case (msg) of
+    Ok (hps) -> do
+      let f = addHostPorts hps
+      liftIO $ modifyMVar_ x (\s -> return $ execState f s)
+      return . toResponse $ "Ok"
+    Error str  -> do
+      return . toResponse $ "" 
+
+
+hostCheck :: MVar ServerState -> ServerPart Response
+hostCheck _ = do
   method GET
   Request { rqPeer = (host,_) } <- askRq
   return . toResponse $ host
@@ -73,8 +88,9 @@ register x = do
   case (msg) of
     Ok (umhp) -> do
       s <- liftIO $ readMVar x
-      liftIO $ modifyMVar_ x (registerHostPort umhp)
-      let cs = clients s
+      let f = registerHostPort umhp
+      liftIO $ modifyMVar_ x (\s' -> return . execState f $ s')
+      let cs = clients s  -- Clients from before modifyMVar
       liftIO . sequence . Prelude.map (\hp -> forkIO $ Client.register hp umhp) $ cs
       return . toResponse $ "Ok"
     Error str  -> do
@@ -99,21 +115,31 @@ distance myHp hp = let
     False -> (maxBound - myHpHash) + (hpHash - minBound)
   where p x = if x < 0 then (-x) else x
 
-filterHostPort :: HostPort -> [ HostPort ] -> [ HostPort ]
-filterHostPort myHp hps =
+filterClients :: HostPort -> [ HostPort ] -> [ HostPort ]
+filterClients myHp hps =
   let hps' = sortBy (\ a b -> compare (distance myHp a) (distance myHp b)) hps
   in take 3 hps'
 
-registerHostPort :: UniqueMessage HostPort -> ServerState -> IO ServerState
-registerHostPort umhp s = case (hasMessage umhp s) of
-  True -> return s
-  False -> return $ execState sm s where
-    sm = do
+-- TODO: rename this.
+addHostPorts :: [ HostPort ] -> State ServerState ()
+addHostPorts hps = do
+  sequence . Prelude.map f $ hps
+  return ()
+  where f hp = do
+          s <- get
+          let Just myHp = hostport s
+          put $ s { clients = filterClients myHp (hp : (clients s)) }
+
+
+registerHostPort :: UniqueMessage HostPort -> State ServerState ()
+registerHostPort umhp = do
+  s <- get
+  case (hasMessage umhp s) of
+    True -> return ()
+    False -> do
       insertMessageDigest umhp
       let UniqueMessage hp _ _ = umhp
-      s <- get
-      let Just myHp = hostport s
-      put $ s { clients = filterHostPort myHp (hp : (clients s)) }
+      addHostPorts [ hp ]
 
 status :: MVar ServerState -> ServerPart Response
 status x = do
@@ -123,7 +149,7 @@ status x = do
 
 updateHostPort :: HostPort -> Int -> MVar ServerState ->  MaybeT IO ()
 updateHostPort hp p s = do
-  h <- Client.hostcheck $ hp
+  h <- Client.hostCheck $ hp
   liftIO $ modifyMVar_ s (\x -> return ( x { hostport = Just (HostPort h p) } ) )
 
 runServer :: ServerConfig -> HostPort -> IO Handle
