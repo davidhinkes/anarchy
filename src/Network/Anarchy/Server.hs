@@ -10,14 +10,14 @@ import qualified Data.ByteString.Char8 as B
 import Data.Maybe
 import Data.Hashable
 import Data.Set
-import Data.List (sortBy)
+import Data.List (nub, sortBy)
 import Happstack.Lite
 import Happstack.Server (Request(..), askRq)
 import Happstack.Server.Types
 import System.Timeout
 import Text.JSON
-
 import Network.Anarchy
+import Network.Anarchy.Server.Internal
 import qualified Network.Anarchy.Client as Client
 
 data ServerState = ServerState {
@@ -63,7 +63,7 @@ addClients x = do
       liftIO $ modifyMVar_ x (\s -> return $ execState f s)
       return . toResponse $ "Ok"
     Error str  -> do
-      return . toResponse $ "" 
+      return . toResponse $ str
 
 
 hostCheck :: MVar ServerState -> ServerPart Response
@@ -89,9 +89,17 @@ register x = do
     Ok (umhp) -> do
       s <- liftIO $ readMVar x
       let f = registerHostPort umhp
-      liftIO $ modifyMVar_ x (\s' -> return . execState f $ s')
-      let cs = clients s  -- Clients from before modifyMVar
-      liftIO . sequence . Prelude.map (\hp -> forkIO $ Client.register hp umhp) $ cs
+      let flip (a,b) = (b,a)
+      wasAdded <- liftIO $ modifyMVar x (\s' -> return . flip . runState f $ s')
+      case wasAdded of
+        True ->  liftIO $ do
+          let cs = clients s  -- Clients from before modifyMVar
+          let UniqueMessage hp _ _ = umhp
+          sequence . Prelude.map (\hp -> forkIO $ Client.register hp umhp) $ cs
+          let Just myHp = hostport s
+          forkIO $ Client.addClients hp $ myHp:cs
+          return ()
+        False -> return () -- don't do anything.
       return . toResponse $ "Ok"
     Error str  -> do
       return . toResponse $ "" 
@@ -102,25 +110,16 @@ hasMessage um s =
   in member h $ digests s
 
 insertMessageDigest :: Hashable a => UniqueMessage a -> State ServerState ()
-insertMessageDigest um = do 
+insertMessageDigest um = do
   s <- get
-  put $ s {digests = insert (hash um) (digests s) }
-
-distance :: HostPort -> HostPort -> Int
-distance myHp hp = let
-  myHpHash = p . hash $ myHp
-  hpHash = p . hash $ hp
-  in case (hpHash > myHpHash) of
-    True -> hpHash - myHpHash
-    False -> (maxBound - myHpHash) + (hpHash - minBound)
-  where p x = if x < 0 then (-x) else x
+  put $ s { digests = insert (hash um) (digests s) }
 
 filterClients :: HostPort -> [ HostPort ] -> [ HostPort ]
 filterClients myHp hps =
-  let hps' = sortBy (\ a b -> compare (distance myHp a) (distance myHp b)) hps
-  in take 3 hps'
+  let hps' = nub . Prelude.filter (\s -> myHp /= s) $ hps
+      hps'' = sortBy (\ a b -> compare (distance myHp a) (distance myHp b)) hps'
+  in take 3 hps''
 
--- TODO: rename this.
 addHostPorts :: [ HostPort ] -> State ServerState ()
 addHostPorts hps = do
   sequence . Prelude.map f $ hps
@@ -130,16 +129,16 @@ addHostPorts hps = do
           let Just myHp = hostport s
           put $ s { clients = filterClients myHp (hp : (clients s)) }
 
-
-registerHostPort :: UniqueMessage HostPort -> State ServerState ()
+registerHostPort :: UniqueMessage HostPort -> State ServerState Bool
 registerHostPort umhp = do
   s <- get
   case (hasMessage umhp s) of
-    True -> return ()
+    True -> return False
     False -> do
       insertMessageDigest umhp
       let UniqueMessage hp _ _ = umhp
       addHostPorts [ hp ]
+      return True
 
 status :: MVar ServerState -> ServerPart Response
 status x = do

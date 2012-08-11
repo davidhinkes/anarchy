@@ -48,6 +48,7 @@ Executable anarchy
                  happstack-lite,
                  happstack-server,
                  hashable,
+                 MissingH,
                  HTTP,
                  json,
                  network,

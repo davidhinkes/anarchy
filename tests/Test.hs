@@ -4,6 +4,7 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Text.JSON
 import Network.Anarchy
 import Network.Anarchy.Server (ServerState(..))
+import Network.Anarchy.Server.Internal
 import Test.QuickCheck.Arbitrary
 import qualified Data.ByteString.Char8 as B
 
@@ -43,7 +44,12 @@ encodeDecodeProp  m = case (decode (encode m)) of
         Ok (m') -> m == m'
         _ -> False
 
+distanceProp hp = distance hp hp == 0
+distanceProp' a b = distance a b >= 0
+
 tests = [
   testProperty "HostPort" (encodeDecodeProp :: UniqueMessage HostPort -> Bool),
-  testProperty "ServerState" (encodeDecodeProp :: UniqueMessage ServerState -> Bool)
+  testProperty "ServerState" (encodeDecodeProp :: UniqueMessage ServerState -> Bool),
+  testProperty "HostPortDistance" (distanceProp :: HostPort -> Bool),
+  testProperty "HostPortDistance'" (distanceProp' :: HostPort -> HostPort -> Bool)
   ]
