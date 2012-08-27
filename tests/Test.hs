@@ -1,4 +1,5 @@
 import Data.Set
+import Data.Hashable
 import Test.Framework (defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Text.JSON
@@ -47,9 +48,16 @@ encodeDecodeProp  m = case (decode (encode m)) of
 distanceProp hp = distance hp hp == 0
 distanceProp' a b = distance a b >= 0
 
+hashProp a b = let a' = hash a
+                   b' = hash b
+               in case (a == b) of
+                 True -> a' == b'
+                 False -> a' /= b'
+
 tests = [
   testProperty "HostPort" (encodeDecodeProp :: UniqueMessage HostPort -> Bool),
   testProperty "ServerState" (encodeDecodeProp :: UniqueMessage ServerState -> Bool),
   testProperty "HostPortDistance" (distanceProp :: HostPort -> Bool),
-  testProperty "HostPortDistance'" (distanceProp' :: HostPort -> HostPort -> Bool)
+  testProperty "HostPortDistance'" (distanceProp' :: HostPort -> HostPort -> Bool),
+  testProperty "Hash" (hashProp :: HostPort -> HostPort -> Bool)
   ]

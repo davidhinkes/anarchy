@@ -94,10 +94,12 @@ register x = do
       case wasAdded of
         True ->  liftIO $ do
           let cs = clients s  -- Clients from before modifyMVar
-          let UniqueMessage hp _ _ = umhp
-          sequence . Prelude.map (\hp -> forkIO $ Client.register hp umhp) $ cs
+          let clientOp = Client.register_ umhp
+          let updateClient hp = Client.run (Client.Options hp) clientOp >> return ()
+          sequence_ . Prelude.map (\hp -> forkIO (updateClient hp)) $ cs
           let Just myHp = hostport s
-          forkIO $ Client.addClients hp $ myHp:cs
+          let UniqueMessage hp _ _ = umhp
+          forkIO (Client.run (Client.Options hp) (Client.addClients_ (myHp:cs)) >> return ())
           return ()
         False -> return () -- don't do anything.
       return . toResponse $ "Ok"
@@ -148,7 +150,7 @@ status x = do
 
 updateHostPort :: HostPort -> Int -> MVar ServerState ->  MaybeT IO ()
 updateHostPort hp p s = do
-  h <- Client.hostCheck $ hp
+  h <- MaybeT $ Client.run (Client.Options hp) Client.hostCheck_
   liftIO $ modifyMVar_ s (\x -> return ( x { hostport = Just (HostPort h p) } ) )
 
 runServer :: ServerConfig -> HostPort -> IO Handle
@@ -160,7 +162,8 @@ runServer config hp = do
   s <- readMVar x
   let Just myhp = hostport s
   msg <- mkMessage myhp myhp
-  Client.register hp msg
+  let clientOp = Client.register_ msg
+  Client.run (Client.Options hp) clientOp
   return (x, id)
 
 block :: Handle -> IO ()
